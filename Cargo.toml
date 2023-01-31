@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "mojika",
+    "mojika_discovery",
+]
+

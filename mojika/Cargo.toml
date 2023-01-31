@@ -1,0 +1,11 @@
+[package]
+name = "mojika"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mojika_discovery = { path = "../mojika_discovery" }
+
+tokio = { version = "1.24", features = ["full"] }
