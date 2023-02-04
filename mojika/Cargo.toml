@@ -9,3 +9,5 @@ edition = "2021"
 mojika_discovery = { path = "../mojika_discovery" }
 
 tokio = { version = "1.24", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
