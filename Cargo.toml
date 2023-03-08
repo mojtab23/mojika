@@ -6,3 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# Async
+tokio = { version = "1.25", features = ["full"] }
+
+# Socket
+socket2="0.4"
+
+# QUIC
+quinn = "0.9"
+rustls = { version = "0.20", features = ["dangerous_configuration", "quic"] }
+rcgen = "0.10"
+
+
+# Log
+log = "0.4"
+env_logger = "0.10"
+
+# Util
+anyhow = "1.0"
