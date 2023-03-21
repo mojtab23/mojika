@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/mojika-new.iml" filepath="$PROJECT_DIR$/mojika-new.iml" />
+      <module fileurl="file://$PROJECT_DIR$/mojika.iml" filepath="$PROJECT_DIR$/mojika.iml" />
     </modules>
   </component>
 </project>

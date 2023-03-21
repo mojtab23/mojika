@@ -9,9 +9,9 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::{broadcast, mpsc, watch};
 use tokio::time::sleep;
 
-use mojika_new::connect::{client, server};
-use mojika_new::discovery::Discovery;
-use mojika_new::gui;
+use mojika::connect::{client, server};
+use mojika::discovery::Discovery;
+use mojika::gui;
 
 #[tokio::main]
 async fn main() -> Result<()> {

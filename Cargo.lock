@@ -874,7 +874,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mojika-new"
+name = "mojika"
 version = "0.1.0"
 dependencies = [
  "anyhow",
