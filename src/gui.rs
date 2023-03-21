@@ -1,5 +1,6 @@
 use eframe::egui;
 use egui::Ui;
+use log::debug;
 use tokio::sync::watch::Receiver;
 
 pub fn new_gui(server_mode: bool, peer_discovery: Receiver<String>) -> eframe::Result<()> {
@@ -48,7 +49,13 @@ impl MyApp {
             ui.label("Searching for Peer");
             ui.spinner();
         } else {
-            ui.label(format!("Found Peer '{}'.", x.as_str()));
+            ui.horizontal(|ui| {
+                let peer = format!("Found Peer '{}'.", *x);
+                ui.label(&peer);
+                if ui.button("CONNECT").clicked() {
+                    debug!("Connect...")
+                }
+            });
         }
     }
 }
