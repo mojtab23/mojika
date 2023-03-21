@@ -10,7 +10,7 @@ edition = "2021"
 tokio = { version = "1.25", features = ["full"] }
 
 # Socket
-socket2="0.4"
+socket2 = "0.4"
 
 # QUIC
 quinn = "0.9"
@@ -25,10 +25,17 @@ env_logger = "0.10"
 # Util
 anyhow = "1.0"
 
+# GUI
+egui = "0.21"
+eframe = { version = "0.21", default-features = false, features = [
+    "default_fonts", # Embed the default egui fonts.
+    "glow", # Use the glow rendering backend. Alternative: "wgpu".
+] }
+
 [dependencies.uuid]
 version = "1.3"
 features = [
-    "v4",                # Lets you generate random UUIDs
-    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "v4", # Lets you generate random UUIDs
+    "fast-rng", # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]

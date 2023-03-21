@@ -35,7 +35,7 @@ impl Discovery {
         Ok(UdpSocket::from_std(std_socket)?)
     }
 
-    pub async fn receive_new_message(&self) -> String {
+    pub async fn receive_new_message(&self) -> (Option<SocketAddr>, String) {
         let socket: Arc<UdpSocket> = self.socket.clone();
         let mut buf = vec![0u8; 1024];
         let result = socket.recv_from(&mut buf).await;
@@ -45,10 +45,14 @@ impl Discovery {
                     .map(|u| u.to_string())
                     .unwrap_or("Invalid UUID".to_string());
                 // let msg = String::from_utf8_lossy(&buf[..len]);
+
                 debug!("message form address: {addr:?}");
-                msg
+                (Some(addr), msg)
             }
-            Err(_) => "Error!".to_string(),
+            Err(_) => {
+                let string = "Error!".to_string();
+                (None, string)
+            }
         }
     }
 
@@ -56,9 +60,10 @@ impl Discovery {
         let socket: Arc<UdpSocket> = self.socket.clone();
         let client_id = Uuid::new_v4();
         let msg = client_id.as_bytes();
+        info!("Client ID: {client_id:?}");
         let addr = SocketAddrV4::new(Ipv4Addr::new(224, 0, 1, 1), DEFAULT_PORT);
         let len = socket.send_to(msg, &addr).await?;
-        info!("Client Sent {len} bytes.");
+        debug!("Client Sent {len} bytes.");
         Ok(())
     }
 }
