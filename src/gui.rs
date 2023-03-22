@@ -5,7 +5,8 @@ use tokio::sync::watch::Receiver;
 
 pub fn new_gui(server_mode: bool, peer_discovery: Receiver<String>) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
+        initial_window_size: Some(egui::vec2(800.0, 600.0)),
+        run_and_return: true,
         ..Default::default()
     };
     let mode = if server_mode {
@@ -15,7 +16,7 @@ pub fn new_gui(server_mode: bool, peer_discovery: Receiver<String>) -> eframe::R
     };
     let title = format!("Mojika Share ({mode})");
 
-    eframe::run_native(
+    let result = eframe::run_native(
         "Mojika",
         options,
         Box::new(|_cc| {
@@ -24,7 +25,9 @@ pub fn new_gui(server_mode: bool, peer_discovery: Receiver<String>) -> eframe::R
                 peer_discovery,
             })
         }),
-    )
+    );
+    debug!("after run native");
+    result
 }
 
 struct MyApp {
