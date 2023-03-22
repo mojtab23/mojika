@@ -44,12 +44,12 @@ fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKe
     Ok((rustls::Certificate(cert.serialize_der()?), key))
 }
 
-pub async fn server(mut shutdown: Receiver<()>) -> Result<()> {
+pub async fn server(port: u16, mut shutdown: Receiver<()>) -> Result<()> {
     debug!("Start QUIC server");
     // Bind this endpoint to a UDP socket on the given server address.
     let (cer, pvk) = generate_self_signed_cert()?;
     let config = ServerConfig::with_single_cert(vec![cer], pvk)?;
-    let endpoint = Endpoint::server(config, server_addr())?;
+    let endpoint = Endpoint::server(config, server_addr(port))?;
 
     // Start iterating over incoming connections.
     while let Some(conn) = endpoint.accept().await {
@@ -86,9 +86,9 @@ pub async fn server(mut shutdown: Receiver<()>) -> Result<()> {
     Ok(())
 }
 
-pub async fn client(remote_addr: SocketAddr) -> Result<()> {
+pub async fn client(remote_addr: SocketAddr, port: u16) -> Result<()> {
     // Bind this endpoint to a UDP socket on the given client address.
-    let mut endpoint = Endpoint::client(client_addr())?;
+    let mut endpoint = Endpoint::client(client_addr(port))?;
     endpoint.set_default_client_config(configure_client());
 
     debug!("Connecting server:{remote_addr:?}");
@@ -100,12 +100,12 @@ pub async fn client(remote_addr: SocketAddr) -> Result<()> {
     Ok(())
 }
 
-fn client_addr() -> SocketAddr {
-    "127.0.0.1:5000".parse::<SocketAddr>().unwrap()
+fn client_addr(port: u16) -> SocketAddr {
+    format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap()
 }
 
-fn server_addr() -> SocketAddr {
-    "127.0.0.1:5001".parse::<SocketAddr>().unwrap()
+fn server_addr(port: u16) -> SocketAddr {
+    format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap()
 }
 
 async fn open_bidirectional_stream(connection: Connection) -> Result<()> {

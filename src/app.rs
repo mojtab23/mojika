@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -10,7 +10,7 @@ use tokio::time::sleep;
 
 use crate::app::shutdown::ShutdownWatcher;
 use crate::connect::{client, server};
-use crate::discovery::Discovery;
+use crate::discovery::{Discovery, DiscoveryResult};
 use crate::gui;
 
 pub struct App {}
@@ -32,10 +32,11 @@ async fn run_core(server_mode: bool, sender: watch::Sender<String>) -> Result<()
     let (watcher, shutdown_rx1) = ShutdownWatcher::new();
     let shutdown_rx2 = watcher.subscribe_shutdown();
 
-    let discovery = Discovery::new().await?;
+    let port = an_open_port()?;
+    let discovery = Discovery::new(port).await?;
 
     let (quic_addr_channel_s, quic_addr_channel_r) = mpsc::channel(10);
-    run_transfer(quic_addr_channel_r, shutdown_rx2, server_mode).await;
+    run_transfer(port, quic_addr_channel_r, shutdown_rx2, server_mode).await;
 
     return if server_mode {
         run_server(&discovery, quic_addr_channel_s, sender, shutdown_rx1).await
@@ -46,7 +47,7 @@ async fn run_core(server_mode: bool, sender: watch::Sender<String>) -> Result<()
 
 async fn run_server(
     discovery: &Discovery,
-    quic_addr_channel_s: mpsc::Sender<SocketAddr>,
+    quic_addr_channel_s: mpsc::Sender<DiscoveryResult>,
     sender: watch::Sender<String>,
     mut shutdown: Receiver<()>,
 ) -> Result<()> {
@@ -54,13 +55,13 @@ async fn run_server(
 
     loop {
         tokio::select! {
-            (addr_rs, msg) = discovery.receive_new_message() => {
-                debug!("Message: {msg}");
-                if let Some(addr) = addr_rs{
-                    let result = quic_addr_channel_s.send(addr).await;
-                    debug!("send addr: {result:?}");
-                    sender.send(format!("Address: {addr:?}, Message: {msg}")).unwrap();
-                }
+            Ok(dis) = discovery.receive_new_message() => {
+                debug!("{dis:?}");
+                let a = dis.addr;
+                let b = &dis.message;
+                sender.send(format!("Address: {a:?}, Message: {b}")).unwrap();
+                let result = quic_addr_channel_s.send(dis).await;
+                debug!("send addr: {result:?}");
             }
             res = shutdown.recv() => {
                 debug!("Got {res:?} for shutdown the server");
@@ -84,7 +85,8 @@ async fn run_client(discovery: &Discovery) -> Result<()> {
 }
 
 async fn run_transfer(
-    mut quic_addr_channel_r: mpsc::Receiver<SocketAddr>,
+    port: u16,
+    mut quic_addr_channel_r: mpsc::Receiver<DiscoveryResult>,
     shutdown: Receiver<()>,
     mode: bool,
 ) {
@@ -93,11 +95,13 @@ async fn run_transfer(
     if mode {
         spawn(async move {
             debug!("Wait for QUIC address");
-            let x = quic_addr_channel_r.recv().await;
-            if let Some(addr) = x {
-                debug!("GOT new address: {addr:?}");
-                let addr1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5001);
-                let result = client(addr1).await;
+            if let Some(dis) = quic_addr_channel_r.recv().await {
+                debug!("GOT new peer: {dis:?}");
+                let addr1 = SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+                    dis.message.service_port,
+                );
+                let result = client(addr1, port).await;
                 match result {
                     Ok(_) => {}
                     Err(e) => {
@@ -108,10 +112,15 @@ async fn run_transfer(
             debug!("END quic client");
         });
     } else {
-        spawn(server(shutdown));
+        spawn(server(port, shutdown));
     }
 
     // let server1 = server(shutdown).await;
+}
+
+pub fn an_open_port() -> Result<u16> {
+    let udp_socket = UdpSocket::bind("127.0.0.1:0")?;
+    Ok(udp_socket.local_addr()?.port())
 }
 
 mod shutdown {
