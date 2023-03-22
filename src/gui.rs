@@ -1,6 +1,6 @@
 use eframe::egui;
 use egui::Ui;
-use log::debug;
+use log::{debug, info};
 use tokio::sync::watch::Receiver;
 
 pub fn new_gui(server_mode: bool, peer_discovery: Receiver<String>) -> eframe::Result<()> {
@@ -55,8 +55,18 @@ impl MyApp {
             ui.horizontal(|ui| {
                 let peer = format!("Found Peer '{}'.", *x);
                 ui.label(&peer);
-                if ui.button("CONNECT").clicked() {
-                    debug!("Connect...")
+                if ui.button("SEND FILE").clicked() {
+                    debug!("open file picker");
+                    let file = rfd::FileDialog::new().pick_file();
+
+                    if let Some(file) = file {
+                        if let Some(filename) = file.file_name() {
+                            let name = filename.to_str().unwrap_or_default();
+                            info!("file:{name}");
+                        }
+                    } else {
+                        debug!("No file selected.")
+                    }
                 }
             });
         }
