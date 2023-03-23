@@ -44,7 +44,7 @@ fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKe
     Ok((rustls::Certificate(cert.serialize_der()?), key))
 }
 
-pub async fn server(port: u16, mut shutdown: Receiver<()>) -> Result<()> {
+pub async fn server(port: u16, _shutdown: Receiver<()>) -> Result<()> {
     debug!("Start QUIC server");
     // Bind this endpoint to a UDP socket on the given server address.
     let (cer, pvk) = generate_self_signed_cert()?;
