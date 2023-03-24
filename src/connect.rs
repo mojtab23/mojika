@@ -45,11 +45,12 @@ fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKe
 }
 
 pub async fn server(port: u16, _shutdown: Receiver<()>) -> Result<()> {
-    debug!("Start QUIC server");
     // Bind this endpoint to a UDP socket on the given server address.
     let (cer, pvk) = generate_self_signed_cert()?;
     let config = ServerConfig::with_single_cert(vec![cer], pvk)?;
     let endpoint = Endpoint::server(config, server_addr(port))?;
+
+    debug!("Start QUIC server on:{:?}", endpoint.local_addr());
 
     // Start iterating over incoming connections.
     while let Some(conn) = endpoint.accept().await {
@@ -101,11 +102,11 @@ pub async fn client(remote_addr: SocketAddr, port: u16) -> Result<()> {
 }
 
 fn client_addr(port: u16) -> SocketAddr {
-    format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap()
+    format!("0.0.0.0:{port}").parse::<SocketAddr>().unwrap()
 }
 
 fn server_addr(port: u16) -> SocketAddr {
-    format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap()
+    format!("0.0.0.0:{port}").parse::<SocketAddr>().unwrap()
 }
 
 async fn open_bidirectional_stream(connection: Connection) -> Result<()> {

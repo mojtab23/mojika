@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,10 +8,9 @@ use log::{debug, error, info, warn};
 use tokio::runtime::Runtime;
 use tokio::spawn;
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::{mpsc, watch, RwLock};
+use tokio::sync::{watch, RwLock};
 use tokio::time::sleep;
 
-use crate::app::event::AppEvent;
 use crate::app::peer::{Peer, Peers};
 use crate::app::shutdown::ShutdownWatcher;
 use crate::connect::{client, server};
@@ -25,8 +24,9 @@ pub mod peer;
 pub struct App {
     runtime: Runtime,
     pub server_mode: bool,
-    app_event: Arc<AppEvent>,
     pub peers: Arc<RwLock<Peers>>,
+    client_port: u16,
+    server_port: u16,
 }
 
 impl App {
@@ -36,14 +36,17 @@ impl App {
             .build()
             .unwrap();
 
+        let client_port = an_open_port().unwrap();
+        let server_port = an_open_port().unwrap();
+        info!("Start app on ports: server:{server_port}, client:{client_port}");
         let server_mode = args == "server";
-        let app_event = Arc::new(AppEvent::new());
         let peers = Arc::new(RwLock::new(Peers::new()));
         Self {
             runtime,
             server_mode,
-            app_event,
             peers,
+            client_port,
+            server_port,
         }
     }
 
@@ -66,32 +69,24 @@ impl App {
         let (watcher, shutdown_rx1) = ShutdownWatcher::new();
         let shutdown_rx2 = watcher.subscribe_shutdown();
 
-        let port = an_open_port()?;
-        let discovery = Discovery::new(port).await?;
+        let discovery = Discovery::new(self.server_port).await?;
 
-        let (quic_addr_channel_s, quic_addr_channel_r) = mpsc::channel(10);
-        run_transfer(port, quic_addr_channel_r, shutdown_rx2, server_mode).await;
+        run_transfer(self.server_port, shutdown_rx2, server_mode).await;
 
         return if server_mode {
-            self.run_server(&discovery, quic_addr_channel_s, shutdown_rx1)
-                .await
+            self.run_server(&discovery, shutdown_rx1).await
         } else {
             run_client(&discovery).await
         };
     }
 
-    async fn run_server(
-        &self,
-        discovery: &Discovery,
-        quic_addr_channel_s: mpsc::Sender<DiscoveryResult>,
-        mut shutdown: Receiver<()>,
-    ) -> Result<()> {
+    async fn run_server(&self, discovery: &Discovery, mut shutdown: Receiver<()>) -> Result<()> {
         info!("Server mode.");
 
         loop {
             tokio::select! {
                 Ok(dr) = discovery.receive_new_message() => {
-                    self.handle_new_message(dr,&quic_addr_channel_s).await;
+                    self.handle_new_message(dr).await;
                 }
                 res = shutdown.recv() => {
                     debug!("Got {res:?} for shutdown the server");
@@ -107,28 +102,42 @@ impl App {
         Ok(())
     }
 
-    async fn handle_new_message(
-        &self,
-        dr: DiscoveryResult,
-        quic_addr_channel_s: &mpsc::Sender<DiscoveryResult>,
-    ) {
+    async fn handle_new_message(&self, dr: DiscoveryResult) {
         debug!("{dr:?}");
         let a = dr.addr;
         let _b = &dr.message;
         let addr = SocketAddr::new(a.ip(), dr.message.service_port);
-        let new_peer = Peer::new(dr.message.id.to_owned(), dr.message.name.to_owned(), addr);
+        let peer_id = dr.message.id;
+        let new_peer = Peer::new(peer_id.to_owned(), dr.message.name.to_owned(), addr);
         {
             let mut p = self.peers.write().await;
             p.deref_mut().register(new_peer).await;
         }
-        let result = quic_addr_channel_s.send(dr).await;
-        debug!("send addr: {result:?}");
+        self.connect_to_peer(&peer_id);
     }
 
-    pub fn send_text(&self, text: &str) -> Result<()> {
-        let count = self.app_event.send_text_signal.send(text.to_string())?;
-        debug!("Sent '{text}' to {count} subscriber.");
-        Ok(())
+    pub fn connect_to_peer(&self, peer_id: &str) {
+        let peers = self.peers.clone();
+        let client_port = self.client_port;
+        let peer_id = peer_id.to_string();
+
+        self.runtime.spawn(async move {
+            let read_peers = peers.read().await;
+            let peer_op = read_peers.find_by_id(&peer_id).await;
+            match peer_op {
+                None => warn!("No peer found with this ID: {peer_id}"),
+                Some(peer) => {
+                    debug!("Connecting peer: {peer:?}");
+                    let result = client(peer.address, client_port).await;
+                    match result {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("QUIC Client error {e:?}");
+                        }
+                    }
+                }
+            }
+        });
     }
 
     pub fn watch_peers(&self) -> watch::Receiver<Vec<Peer>> {
@@ -143,34 +152,10 @@ async fn run_client(discovery: &Discovery) -> Result<()> {
     Ok(())
 }
 
-async fn run_transfer(
-    port: u16,
-    mut quic_addr_channel_r: mpsc::Receiver<DiscoveryResult>,
-    shutdown: Receiver<()>,
-    mode: bool,
-) {
+async fn run_transfer(port: u16, shutdown: Receiver<()>, mode: bool) {
     info!("Run Transfer");
 
-    if mode {
-        spawn(async move {
-            debug!("Wait for QUIC address");
-            if let Some(dis) = quic_addr_channel_r.recv().await {
-                debug!("GOT new peer: {dis:?}");
-                let addr1 = SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-                    dis.message.service_port,
-                );
-                let result = client(addr1, port).await;
-                match result {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("QUIC Client error {e:?}");
-                    }
-                }
-            }
-            debug!("END quic client");
-        });
-    } else {
+    if !mode {
         spawn(server(port, shutdown));
     }
 

@@ -29,6 +29,11 @@ impl Peers {
         option.is_some()
     }
 
+    pub async fn find_by_id(&self, id: &str) -> Option<Peer> {
+        let option = self.items.get(id);
+        option.cloned()
+    }
+
     fn items_changed(&self) {
         let _ = self
             .peers_watch_s

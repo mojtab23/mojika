@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use eframe::egui;
 use egui::Ui;
-use log::{debug, info};
+use log::debug;
 use tokio::sync::watch::Receiver;
 
 use crate::app::peer::Peer;
@@ -64,26 +64,25 @@ impl AppUi {
         } else {
             for peer in peers.iter() {
                 ui.horizontal(|ui| {
-                    let peer = format!("Found Peer '{:?}'.", peer);
-                    ui.label(&peer);
-                    if ui.button("SEND FILE").clicked() {
-                        debug!("open file picker");
-                        let file = rfd::FileDialog::new().pick_file();
-
-                        if let Some(file) = file {
-                            if let Some(filename) = file.file_name() {
-                                let name = filename.to_str().unwrap_or_default();
-                                info!("file:{name}");
-                            }
-                        } else {
-                            debug!("No file selected.")
-                        }
-                    }
-                    if ui.button("SEND TEXT").clicked() {
-                        let text = "Hi from other Mojika";
-                        debug!("{}", text);
-                        let r = self.app.send_text("Hi from other Mojika");
-                        debug!("send text called: {r:?}");
+                    let short_id: String = peer.id.chars().take(4).collect();
+                    let peer_text = format!("{} ({})", peer.name, short_id);
+                    ui.label(&peer_text);
+                    // if ui.button("SEND FILE").clicked() {
+                    //     debug!("open file picker");
+                    //     let file = rfd::FileDialog::new().pick_file();
+                    //
+                    //     if let Some(file) = file {
+                    //         if let Some(filename) = file.file_name() {
+                    //             let name = filename.to_str().unwrap_or_default();
+                    //             info!("file:{name}");
+                    //         }
+                    //     } else {
+                    //         debug!("No file selected.")
+                    //     }
+                    // }
+                    if ui.button("CONNECT").clicked() {
+                        debug!("Connect to {peer:?} clicked.");
+                        self.app.connect_to_peer(&peer.id);
                     }
                 });
             }
