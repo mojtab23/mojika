@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Result;
-use log::debug;
+use log::{debug, warn};
 use quinn::{ClientConfig, Connection, Endpoint, ServerConfig};
 use tokio::sync::broadcast::Receiver;
 
@@ -44,7 +44,7 @@ fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKe
     Ok((rustls::Certificate(cert.serialize_der()?), key))
 }
 
-pub async fn server(port: u16, _shutdown: Receiver<()>) -> Result<()> {
+pub async fn server(port: u16, mut shutdown: Receiver<()>) -> Result<()> {
     // Bind this endpoint to a UDP socket on the given server address.
     let (cer, pvk) = generate_self_signed_cert()?;
     let config = ServerConfig::with_single_cert(vec![cer], pvk)?;
@@ -52,38 +52,25 @@ pub async fn server(port: u16, _shutdown: Receiver<()>) -> Result<()> {
 
     debug!("Start QUIC server on:{:?}", endpoint.local_addr());
 
-    // Start iterating over incoming connections.
-    while let Some(conn) = endpoint.accept().await {
-        let connection = conn.await?;
-        let client_addr = connection.remote_address();
-        debug!("Got new QUIC connection {client_addr:?}");
-        // Save connection somewhere, start transferring, receiving data, see DataTransfer tutorial.
-        receive_bidirectional_stream(connection).await?;
+    loop {
+        tokio::select! {
+            Some(conn) = endpoint.accept() => {
+                let connection = conn.await?;
+                let client_addr = connection.remote_address();
+                debug!("Got new QUIC connection {client_addr:?}");
+                // Save connection somewhere, start transferring, receiving data, see DataTransfer tutorial.
+                receive_bidirectional_stream(connection).await?;
+            }
+            res = shutdown.recv() => {
+                debug!("Got {res:?} for shutdown the server");
+                break
+            }
+            else => {
+                warn!("Both channels closed");
+                break
+            }
+        }
     }
-
-    // loop {
-    //     debug!("Accepting new QUIC connection {endpoint:?}");
-    //
-    //     select! {
-    //
-    //         Some(conn) = endpoint.accept() => {
-    //             let connection = conn.await?;
-    //             let client_addr = connection.remote_address();
-    //             debug!("Got new QUIC connection {client_addr:?}");
-    //             // Save connection somewhere, start transferring, receiving data, see DataTransfer tutorial.
-    //             receive_bidirectional_stream(connection).await?;
-    //         }
-    //         res = shutdown.recv() => {
-    //             debug!("Got {res:?} for shutdown the server");
-    //             break
-    //         }
-    //         else => {
-    //             warn!("Both channels closed");
-    //             break
-    //         }
-    //     }
-    // }
-
     Ok(())
 }
 
