@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 
 use log::warn;
@@ -7,16 +8,18 @@ use tokio::sync::watch::{Receiver, Sender};
 
 #[derive(Debug)]
 pub struct Peers {
+    self_peer: Peer,
     items: HashMap<String, Peer>,
     peers_watch_s: Sender<Vec<Peer>>,
     _peers_watch_r: Receiver<Vec<Peer>>,
 }
 
 impl Peers {
-    pub fn new() -> Self {
+    pub fn new(self_peer: Peer) -> Self {
         let (peers_watch_s, _peers_watch_r) = watch::channel(vec![]);
 
         Self {
+            self_peer,
             items: HashMap::with_capacity(10),
             peers_watch_s,
             _peers_watch_r,
@@ -24,6 +27,9 @@ impl Peers {
     }
 
     pub async fn register(&mut self, peer: Peer) -> bool {
+        if peer.id == self.self_peer.id {
+            return true;
+        }
         let option = self.items.insert(peer.id.to_owned(), peer);
         self.items_changed();
         option.is_some()
@@ -48,12 +54,6 @@ impl Peers {
     }
 }
 
-impl Default for Peers {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Peer {
     pub id: String,
@@ -64,5 +64,12 @@ pub struct Peer {
 impl Peer {
     pub fn new(id: String, name: String, address: SocketAddr) -> Self {
         Self { id, name, address }
+    }
+}
+
+impl Display for Peer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let short_id: String = self.id.chars().take(4).collect();
+        write!(f, "{} ({})", self.name, short_id)
     }
 }

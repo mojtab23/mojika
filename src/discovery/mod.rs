@@ -3,11 +3,12 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
-use log::{debug, info};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tokio::net::UdpSocket;
-use uuid::Uuid;
+
+use crate::app::peer::Peer;
 
 const DEFAULT_PORT: u16 = 10020;
 
@@ -17,10 +18,10 @@ pub struct Discovery {
 }
 
 impl Discovery {
-    pub async fn new(service_port: u16) -> Result<Self> {
+    pub async fn new(peer: Peer) -> Result<Self> {
         let socket = Self::create_socket()?;
         let socket = Arc::new(socket);
-        let message = DiscoveryMessage::new(service_port);
+        let message = DiscoveryMessage::new(peer.id, peer.name, peer.address.port());
         let discovery = Self { socket, message };
         Ok(discovery)
     }
@@ -61,7 +62,7 @@ impl Discovery {
         let socket: Arc<UdpSocket> = self.socket.clone();
         let message = ron::to_string(&self.message)?;
         let msg = message.as_bytes();
-        info!("{message:?}");
+        debug!("{message:?}");
         let addr = SocketAddrV4::new(Ipv4Addr::new(224, 0, 1, 1), DEFAULT_PORT);
         let len = socket.send_to(msg, &addr).await?;
         debug!("Client Sent {len} bytes.");
@@ -77,11 +78,10 @@ pub struct DiscoveryMessage {
 }
 
 impl DiscoveryMessage {
-    pub fn new(service_port: u16) -> Self {
-        let id = Uuid::new_v4().to_string();
+    pub fn new(id: String, name: String, service_port: u16) -> Self {
         Self {
             id,
-            name: "Buddy".to_string(),
+            name,
             service_port,
         }
     }

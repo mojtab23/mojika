@@ -92,7 +92,7 @@ fn client_addr(port: u16) -> SocketAddr {
     format!("0.0.0.0:{port}").parse::<SocketAddr>().unwrap()
 }
 
-fn server_addr(port: u16) -> SocketAddr {
+pub fn server_addr(port: u16) -> SocketAddr {
     format!("0.0.0.0:{port}").parse::<SocketAddr>().unwrap()
 }
 

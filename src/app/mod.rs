@@ -10,10 +10,11 @@ use tokio::spawn;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::{watch, RwLock};
 use tokio::time::sleep;
+use uuid::Uuid;
 
 use crate::app::peer::{Peer, Peers};
 use crate::app::shutdown::ShutdownWatcher;
-use crate::connect::{client, server};
+use crate::connect::{client, server, server_addr};
 use crate::discovery::{Discovery, DiscoveryResult};
 use crate::gui;
 
@@ -23,14 +24,14 @@ pub mod peer;
 #[derive(Debug)]
 pub struct App {
     runtime: Runtime,
-    pub server_mode: bool,
     pub peers: Arc<RwLock<Peers>>,
     client_port: u16,
     server_port: u16,
+    pub(crate) self_peer: Peer,
 }
 
 impl App {
-    pub fn new(args: &str) -> Self {
+    pub fn new() -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -38,16 +39,23 @@ impl App {
 
         let client_port = an_open_port().unwrap();
         let server_port = an_open_port().unwrap();
+        let self_peer = Self::create_self_peer(server_port);
         info!("Start app on ports: server:{server_port}, client:{client_port}");
-        let server_mode = args == "server";
-        let peers = Arc::new(RwLock::new(Peers::new()));
+        info!("Self Peer:{self_peer:?}");
+        let peers = Arc::new(RwLock::new(Peers::new(self_peer.clone())));
         Self {
             runtime,
-            server_mode,
             peers,
             client_port,
             server_port,
+            self_peer,
         }
+    }
+
+    fn create_self_peer(server_port: u16) -> Peer {
+        let id = Uuid::new_v4().to_string();
+        let name = "Buddy".to_string();
+        Peer::new(id, name, server_addr(server_port))
     }
 
     pub fn start(self: Arc<Self>) -> Result<()> {
@@ -65,19 +73,20 @@ impl App {
     // }
 
     async fn run_core(self: Arc<Self>) -> Result<()> {
-        let server_mode = self.server_mode;
         let (watcher, shutdown_rx1) = ShutdownWatcher::new();
         let shutdown_rx2 = watcher.subscribe_shutdown();
 
-        let discovery = Discovery::new(self.server_port).await?;
+        let discovery = Arc::new(Discovery::new(self.self_peer.clone()).await?);
 
-        run_transfer(self.server_port, shutdown_rx2, server_mode).await;
+        run_transfer(self.server_port, shutdown_rx2).await;
 
-        return if server_mode {
-            self.run_server(&discovery, shutdown_rx1).await
-        } else {
-            run_client(&discovery).await
-        };
+        let app = self.clone();
+
+        let d = discovery.clone();
+        spawn(async move {
+            let _ = app.run_client(&d, watcher.subscribe_shutdown()).await;
+        });
+        self.run_server(&discovery.clone(), shutdown_rx1).await
     }
 
     async fn run_server(&self, discovery: &Discovery, mut shutdown: Receiver<()>) -> Result<()> {
@@ -143,22 +152,38 @@ impl App {
     pub fn watch_peers(&self) -> watch::Receiver<Vec<Peer>> {
         self.peers.blocking_read().watch_peers()
     }
-}
 
-async fn run_client(discovery: &Discovery) -> Result<()> {
-    info!("Client mode.");
-    discovery.send_signal().await?;
-    sleep(Duration::from_secs(10)).await;
-    Ok(())
-}
-
-async fn run_transfer(port: u16, shutdown: Receiver<()>, mode: bool) {
-    info!("Run Transfer");
-
-    if !mode {
-        spawn(server(port, shutdown));
+    async fn run_client(&self, discovery: &Discovery, mut shutdown: Receiver<()>) -> Result<()> {
+        info!("Sending signal.");
+        loop {
+            tokio::select! {
+                _ = sleep(Duration::from_secs(2)) => {
+                    discovery.send_signal().await?;
+                }
+                res = shutdown.recv() => {
+                    debug!("Got {res:?} for shutdown the server");
+                    break
+                }
+                else => {
+                    warn!("Both channels closed");
+                    break
+                }
+            }
+        }
+        info!("Signal stopped.");
+        Ok(())
     }
+}
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+async fn run_transfer(port: u16, shutdown: Receiver<()>) {
+    info!("Run Transfer");
+    spawn(server(port, shutdown));
     // let server1 = server(shutdown).await;
 }
 

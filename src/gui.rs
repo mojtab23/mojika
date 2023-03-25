@@ -14,12 +14,8 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
         run_and_return: true,
         ..Default::default()
     };
-    let mode = if app.server_mode {
-        "server mode"
-    } else {
-        "client mode"
-    };
-    let title = format!("Mojika Share ({mode})");
+    let name = app.self_peer.to_string();
+    let title = format!("Mojika Share ({name})");
 
     let watch_peers = app.watch_peers();
 
@@ -64,8 +60,7 @@ impl AppUi {
         } else {
             for peer in peers.iter() {
                 ui.horizontal(|ui| {
-                    let short_id: String = peer.id.chars().take(4).collect();
-                    let peer_text = format!("{} ({})", peer.name, short_id);
+                    let peer_text = peer.to_string();
                     ui.label(&peer_text);
                     // if ui.button("SEND FILE").clicked() {
                     //     debug!("open file picker");

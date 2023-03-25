@@ -1,4 +1,3 @@
-use std::env::args;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -11,9 +10,7 @@ fn main() -> Result<()> {
         .filter_level(LevelFilter::Debug)
         .init();
 
-    let mode = args().nth(1).unwrap_or_else(|| "server".to_string());
-
-    let app = Arc::new(App::new(&mode));
+    let app = Arc::new(App::new());
 
     // Arc::try_unwrap(app).unwrap().stop();
     app.start()
