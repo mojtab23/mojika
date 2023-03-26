@@ -1,7 +1,8 @@
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use eframe::egui;
-use egui::Ui;
+use egui::{SelectableLabel, Ui};
 use log::debug;
 use tokio::sync::watch::Receiver;
 
@@ -26,6 +27,8 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
             Box::new(AppUi {
                 app,
                 title,
+                tab: Tab::Discovery,
+                selected_peer_id: None,
                 watch_peers,
             })
         }),
@@ -37,6 +40,8 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
 struct AppUi {
     app: Arc<App>,
     title: String,
+    tab: Tab,
+    selected_peer_id: Option<String>,
     watch_peers: Receiver<Vec<Peer>>,
 }
 
@@ -45,13 +50,25 @@ impl eframe::App for AppUi {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(&self.title);
 
-            self.show_peers(ui);
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.tab, Tab::Discovery, Tab::Discovery.to_string());
+                if ui
+                    .add_enabled(
+                        self.selected_peer_id.is_some(),
+                        SelectableLabel::new(self.tab == Tab::PeerView, Tab::PeerView.to_string()),
+                    )
+                    .clicked()
+                {
+                    self.tab = Tab::PeerView;
+                }
+            });
+            self.show_tab_content(ui);
         });
     }
 }
 
 impl AppUi {
-    fn show_peers(&mut self, ui: &mut Ui) {
+    fn show_discoverd_peers(&mut self, ui: &mut Ui) {
         let peers = self.watch_peers.borrow();
 
         if peers.is_empty() {
@@ -62,6 +79,11 @@ impl AppUi {
                 ui.horizontal(|ui| {
                     let peer_text = peer.to_string();
                     ui.label(&peer_text);
+                    if ui.button("SHOW").clicked() {
+                        debug!("Show {peer} clicked!");
+                        self.selected_peer_id = Some(peer.id.clone());
+                        self.tab = Tab::PeerView;
+                    }
                     // if ui.button("SEND FILE").clicked() {
                     //     debug!("open file picker");
                     //     let file = rfd::FileDialog::new().pick_file();
@@ -81,6 +103,36 @@ impl AppUi {
                     }
                 });
             }
+        }
+    }
+
+    fn show_selected_peer(&mut self, ui: &mut Ui) {
+        ui.label(format!(
+            "Peer Id: {}",
+            self.selected_peer_id
+                .clone()
+                .unwrap_or("NONE!?".to_string())
+        ));
+    }
+    fn show_tab_content(&mut self, ui: &mut Ui) {
+        match self.tab {
+            Tab::Discovery => self.show_discoverd_peers(ui),
+            Tab::PeerView => self.show_selected_peer(ui),
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum Tab {
+    Discovery,
+    PeerView,
+}
+
+impl Display for Tab {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Tab::Discovery => write!(f, "Discovery"),
+            Tab::PeerView => write!(f, "View Peer"),
         }
     }
 }
