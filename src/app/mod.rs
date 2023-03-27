@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 use std::ops::DerefMut;
 use std::sync::Arc;
@@ -149,7 +150,7 @@ impl App {
         });
     }
 
-    pub fn watch_peers(&self) -> watch::Receiver<Vec<Peer>> {
+    pub fn watch_peers(&self) -> watch::Receiver<HashMap<String, Peer>> {
         self.peers.blocking_read().watch_peers()
     }
 

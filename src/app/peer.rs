@@ -6,17 +6,19 @@ use log::warn;
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver, Sender};
 
+use crate::chat::Chat;
+
 #[derive(Debug)]
 pub struct Peers {
     self_peer: Peer,
     items: HashMap<String, Peer>,
-    peers_watch_s: Sender<Vec<Peer>>,
-    _peers_watch_r: Receiver<Vec<Peer>>,
+    peers_watch_s: Sender<HashMap<String, Peer>>,
+    _peers_watch_r: Receiver<HashMap<String, Peer>>,
 }
 
 impl Peers {
     pub fn new(self_peer: Peer) -> Self {
-        let (peers_watch_s, _peers_watch_r) = watch::channel(vec![]);
+        let (peers_watch_s, _peers_watch_r) = watch::channel(HashMap::default());
 
         Self {
             self_peer,
@@ -41,15 +43,12 @@ impl Peers {
     }
 
     fn items_changed(&self) {
-        let _ = self
-            .peers_watch_s
-            .send(self.items.values().cloned().collect())
-            .map_err(|e| {
-                warn!("Error emitting peers:{e}");
-            });
+        let _ = self.peers_watch_s.send(self.items.clone()).map_err(|e| {
+            warn!("Error emitting peers:{e}");
+        });
     }
 
-    pub fn watch_peers(&self) -> Receiver<Vec<Peer>> {
+    pub fn watch_peers(&self) -> Receiver<HashMap<String, Peer>> {
         self.peers_watch_s.subscribe()
     }
 }
@@ -59,11 +58,17 @@ pub struct Peer {
     pub id: String,
     pub name: String,
     pub address: SocketAddr,
+    pub chat: Chat,
 }
 
 impl Peer {
     pub fn new(id: String, name: String, address: SocketAddr) -> Self {
-        Self { id, name, address }
+        Self {
+            id,
+            name,
+            address,
+            chat: Chat::new(),
+        }
     }
 }
 

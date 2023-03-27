@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
@@ -42,7 +43,7 @@ struct AppUi {
     title: String,
     tab: Tab,
     selected_peer_id: Option<String>,
-    watch_peers: Receiver<Vec<Peer>>,
+    watch_peers: Receiver<HashMap<String, Peer>>,
 }
 
 impl eframe::App for AppUi {
@@ -75,7 +76,7 @@ impl AppUi {
             ui.label("Searching for Peer");
             ui.spinner();
         } else {
-            for peer in peers.iter() {
+            for (_, peer) in peers.iter() {
                 ui.horizontal(|ui| {
                     let peer_text = peer.to_string();
                     ui.label(&peer_text);
@@ -113,7 +114,42 @@ impl AppUi {
                 .clone()
                 .unwrap_or("NONE!?".to_string())
         ));
+        self.show_chat(ui);
     }
+
+    fn show_chat(&mut self, ui: &mut Ui) {
+        ui.group(|ui| {
+            ui.heading("Chat");
+            let peers = self.watch_peers.borrow();
+            let option = &self.selected_peer_id;
+            match option {
+                None => {
+                    ui.label("nothing to show!");
+                }
+                Some(peer_id) => {
+                    let peer_op = peers
+                        .iter()
+                        .find(|&(id, _)| id == peer_id)
+                        .map(|(_id, p)| p.clone());
+                    match peer_op {
+                        None => {
+                            ui.label("error finding the peer content!");
+                        }
+                        Some(p) => {
+                            if p.chat.messages.is_empty() {
+                                ui.label("nothing to show!");
+                            } else {
+                                for message in p.chat.messages.iter() {
+                                    ui.label(format!("{message:?}"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     fn show_tab_content(&mut self, ui: &mut Ui) {
         match self.tab {
             Tab::Discovery => self.show_discoverd_peers(ui),
