@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
@@ -6,7 +7,7 @@ use log::warn;
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver, Sender};
 
-use crate::chat::Chat;
+use crate::chat::{Chat, Message};
 
 #[derive(Debug)]
 pub struct Peers {
@@ -28,18 +29,31 @@ impl Peers {
         }
     }
 
-    pub async fn register(&mut self, peer: Peer) -> bool {
+    pub async fn register(&mut self, peer: Peer) {
         if peer.id == self.self_peer.id {
-            return true;
+            return;
         }
-        let option = self.items.insert(peer.id.to_owned(), peer);
-        self.items_changed();
-        option.is_some()
+        let peer_id = peer.id.to_owned();
+        if let Vacant(e) = self.items.entry(peer_id) {
+            e.insert(peer);
+            self.items_changed();
+        }
     }
 
     pub async fn find_by_id(&self, id: &str) -> Option<Peer> {
         let option = self.items.get(id);
         option.cloned()
+    }
+
+    pub fn add_chat(&mut self, peer_id: &str, sender_id: &str, chat: String) {
+        let peer_op = self.items.get_mut(peer_id);
+        match peer_op {
+            None => {}
+            Some(peer) => {
+                peer.chat.messages.push(Message::new(sender_id, chat));
+                self.items_changed();
+            }
+        }
     }
 
     fn items_changed(&self) {

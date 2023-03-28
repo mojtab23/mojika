@@ -154,6 +154,16 @@ impl App {
         self.peers.blocking_read().watch_peers()
     }
 
+    pub fn send_chat(&self, peer_id: &str, sender_id: &str, chat: String) {
+        let peers = self.peers.clone();
+        let peer_id = peer_id.to_string();
+        let sender_id = sender_id.to_string();
+        self.runtime.spawn(async move {
+            let mut write_peers = peers.write().await;
+            write_peers.add_chat(&peer_id, &sender_id, chat);
+        });
+    }
+
     async fn run_client(&self, discovery: &Discovery, mut shutdown: Receiver<()>) -> Result<()> {
         info!("Sending signal.");
         loop {

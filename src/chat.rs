@@ -5,9 +5,7 @@ pub struct Chat {
 
 impl Chat {
     pub fn new() -> Self {
-        Self {
-            messages: vec![],
-        }
+        Self { messages: vec![] }
     }
 }
 
@@ -24,10 +22,10 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(sender: &str, content: &str) -> Self {
+    pub fn new(sender: &str, content: String) -> Self {
         Self {
             sender: sender.to_string(),
-            content: content.to_string(),
+            content,
         }
     }
 }

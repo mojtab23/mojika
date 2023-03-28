@@ -31,6 +31,7 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
                 tab: Tab::Discovery,
                 selected_peer_id: None,
                 watch_peers,
+                chat_text: String::new(),
             })
         }),
     );
@@ -44,6 +45,7 @@ struct AppUi {
     tab: Tab,
     selected_peer_id: Option<String>,
     watch_peers: Receiver<HashMap<String, Peer>>,
+    chat_text: String,
 }
 
 impl eframe::App for AppUi {
@@ -120,8 +122,8 @@ impl AppUi {
     fn show_chat(&mut self, ui: &mut Ui) {
         ui.group(|ui| {
             ui.heading("Chat");
-            let peers = self.watch_peers.borrow();
-            let option = &self.selected_peer_id;
+            let peers = self.watch_peers.borrow().clone();
+            let option = self.selected_peer_id.clone();
             match option {
                 None => {
                     ui.label("nothing to show!");
@@ -129,23 +131,40 @@ impl AppUi {
                 Some(peer_id) => {
                     let peer_op = peers
                         .iter()
-                        .find(|&(id, _)| id == peer_id)
+                        .find(|&(id, _)| id == &peer_id)
                         .map(|(_id, p)| p.clone());
-                    match peer_op {
-                        None => {
-                            ui.label("error finding the peer content!");
-                        }
-                        Some(p) => {
-                            if p.chat.messages.is_empty() {
-                                ui.label("nothing to show!");
-                            } else {
-                                for message in p.chat.messages.iter() {
-                                    ui.label(format!("{message:?}"));
-                                }
-                            }
-                        }
+                    self.chat_ui(ui, peer_op, &peer_id);
+                }
+            }
+        });
+    }
+
+    fn chat_ui(&mut self, ui: &mut Ui, peer_op: Option<Peer>, peer_id: &str) {
+        match peer_op {
+            None => {
+                ui.label("error finding the peer content!");
+            }
+            Some(p) => {
+                if p.chat.messages.is_empty() {
+                    ui.label("nothing to show!");
+                } else {
+                    for message in p.chat.messages.iter() {
+                        let name = if message.sender == self.app.self_peer.id {
+                            "Me"
+                        } else {
+                            &p.name
+                        };
+                        ui.label(format!("{name}: {}", message.content));
                     }
                 }
+            }
+        }
+        ui.horizontal(|ui| {
+            ui.text_edit_singleline(&mut self.chat_text);
+            if ui.button("SEND").clicked() && !self.chat_text.is_empty() {
+                self.app
+                    .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
+                self.chat_text.clear();
             }
         });
     }
