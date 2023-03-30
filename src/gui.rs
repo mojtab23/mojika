@@ -160,13 +160,21 @@ impl AppUi {
             }
         }
         ui.horizontal(|ui| {
-            ui.text_edit_singleline(&mut self.chat_text);
-            if ui.button("SEND").clicked() && !self.chat_text.is_empty() {
-                self.app
-                    .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
-                self.chat_text.clear();
+            let response = ui.add(egui::TextEdit::singleline(&mut self.chat_text));
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                self.send_chat(peer_id);
             }
+            if ui.button("SEND").clicked() && !self.chat_text.is_empty() {
+                self.send_chat(peer_id);
+            }
+            response.request_focus();
         });
+    }
+
+    fn send_chat(&mut self, peer_id: &str) {
+        self.app
+            .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
+        self.chat_text.clear();
     }
 
     fn show_tab_content(&mut self, ui: &mut Ui) {
