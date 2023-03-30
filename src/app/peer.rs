@@ -71,16 +71,18 @@ impl Peers {
 pub struct Peer {
     pub id: String,
     pub name: String,
+    pub secret: String,
     pub address: SocketAddr,
     pub chat: Chat,
 }
 
 impl Peer {
-    pub fn new(id: String, name: String, address: SocketAddr) -> Self {
+    pub fn new(id: String, name: String, secret: String, address: SocketAddr) -> Self {
         Self {
             id,
             name,
             address,
+            secret,
             chat: Chat::new(),
         }
     }
