@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use eframe::egui;
@@ -28,7 +27,6 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
             Box::new(AppUi {
                 app,
                 title,
-                tab: Tab::Discovery,
                 selected_peer_id: None,
                 watch_peers,
                 chat_text: String::new(),
@@ -42,7 +40,6 @@ pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
 struct AppUi {
     app: Arc<App>,
     title: String,
-    tab: Tab,
     selected_peer_id: Option<String>,
     watch_peers: Receiver<HashMap<String, Peer>>,
     chat_text: String,
@@ -80,10 +77,9 @@ impl AppUi {
                 ui.horizontal(|ui| {
                     let peer_text = peer.to_string();
                     ui.label(&peer_text);
-                    if ui.button("SHOW").clicked() {
-                        debug!("Show {peer} clicked!");
+                    if ui.button("SELECT").clicked() {
+                        debug!("SELECT {peer} clicked!");
                         self.selected_peer_id = Some(peer.id.clone());
-                        self.tab = Tab::PeerView;
                     }
                     // if ui.button("SEND FILE").clicked() {
                     //     debug!("open file picker");
@@ -98,10 +94,10 @@ impl AppUi {
                     //         debug!("No file selected.")
                     //     }
                     // }
-                    if ui.button("CONNECT").clicked() {
-                        debug!("Connect to {peer:?} clicked.");
-                        self.app.connect_to_peer(&peer.id);
-                    }
+                    // if ui.button("CONNECT").clicked() {
+                    //     debug!("Connect to {peer:?} clicked.");
+                    //     self.app.connect_to_peer(&peer.id);
+                    // }
                 });
             }
         }
@@ -176,20 +172,5 @@ impl AppUi {
         self.app
             .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
         self.chat_text.clear();
-    }
-}
-
-#[derive(PartialEq)]
-enum Tab {
-    Discovery,
-    PeerView,
-}
-
-impl Display for Tab {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Tab::Discovery => write!(f, "Discovery"),
-            Tab::PeerView => write!(f, "View Peer"),
-        }
     }
 }
