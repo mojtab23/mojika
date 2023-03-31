@@ -138,9 +138,16 @@ impl App {
         if dr.message.id == self.self_peer.id {
             return;
         };
+        {
+            let peer_id = &dr.message.id;
+            let read_peers = self.peers.read().await;
+            let already_peer = read_peers.find_by_id(peer_id).await;
+            if already_peer.is_some() {
+                return;
+            }
+        }
         debug!("{dr:?}");
         let a = dr.addr;
-        let _b = &dr.message;
         let addr = SocketAddr::new(a.ip(), dr.message.service_port);
         let peer_id = dr.message.id;
 

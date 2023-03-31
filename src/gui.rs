@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use eframe::egui;
-use egui::{SelectableLabel, Ui};
+use egui::Ui;
 use log::debug;
 use tokio::sync::watch::Receiver;
 
@@ -50,22 +50,20 @@ struct AppUi {
 
 impl eframe::App for AppUi {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading(&self.title);
-
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.tab, Tab::Discovery, Tab::Discovery.to_string());
-                if ui
-                    .add_enabled(
-                        self.selected_peer_id.is_some(),
-                        SelectableLabel::new(self.tab == Tab::PeerView, Tab::PeerView.to_string()),
-                    )
-                    .clicked()
-                {
-                    self.tab = Tab::PeerView;
-                }
+        egui::TopBottomPanel::top("header")
+            .resizable(false)
+            .exact_height(40.0)
+            .show(ctx, |ui| {
+                ui.heading(&self.title);
             });
-            self.show_tab_content(ui);
+
+        egui::SidePanel::left("peers_list")
+            .resizable(false)
+            .exact_width(240.0)
+            .show(ctx, |ui| self.show_discoverd_peers(ui));
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.show_selected_peer(ui);
         });
     }
 }
@@ -110,13 +108,16 @@ impl AppUi {
     }
 
     fn show_selected_peer(&mut self, ui: &mut Ui) {
-        ui.label(format!(
-            "Peer Id: {}",
-            self.selected_peer_id
-                .clone()
-                .unwrap_or("NONE!?".to_string())
-        ));
-        self.show_chat(ui);
+        let selected_peer = &self.selected_peer_id;
+        match selected_peer {
+            None => {
+                ui.label("No peer is selected.");
+            }
+            Some(selected_peer) => {
+                ui.label(format!("Peer Id: {selected_peer}"));
+                self.show_chat(ui);
+            }
+        }
     }
 
     fn show_chat(&mut self, ui: &mut Ui) {
@@ -175,13 +176,6 @@ impl AppUi {
         self.app
             .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
         self.chat_text.clear();
-    }
-
-    fn show_tab_content(&mut self, ui: &mut Ui) {
-        match self.tab {
-            Tab::Discovery => self.show_discoverd_peers(ui),
-            Tab::PeerView => self.show_selected_peer(ui),
-        }
     }
 }
 
