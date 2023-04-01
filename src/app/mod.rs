@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::fs::create_dir;
 use std::net::{SocketAddr, UdpSocket};
 use std::ops::DerefMut;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{bail, Error, Result};
+use directories::UserDirs;
 use log::{debug, error, info, warn};
 use tokio::runtime::Runtime;
 use tokio::spawn;
@@ -36,6 +39,7 @@ pub struct App {
     server_port: u16,
     pub(crate) self_peer: Peer,
     requester: Arc<Requester>,
+    mojika_dir: PathBuf,
 }
 
 impl App {
@@ -56,13 +60,34 @@ impl App {
             .block_on(async { Requester::new(requester_port) })?
             .into();
 
+        let mojika_dir = Self::create_mojika_dir()?;
+        info!("Download dir: {mojika_dir:?}");
+
         Ok(Self {
             runtime,
             peers,
             server_port,
             self_peer,
             requester,
+            mojika_dir,
         })
+    }
+
+    fn create_mojika_dir() -> Result<PathBuf> {
+        let user_dirs = UserDirs::new().ok_or(Error::msg("Can not find the UserDirs."))?;
+        let download_dir = user_dirs
+            .download_dir()
+            .ok_or(Error::msg("Can not find the Download directory."))?;
+        let metadata = download_dir.metadata()?;
+        if !metadata.is_dir() || metadata.is_symlink() {
+            bail!("Download directory is not valid. {:?}", metadata);
+        }
+        let mut mojika_dir = PathBuf::from(download_dir);
+        mojika_dir.push("mojika");
+        if !mojika_dir.exists() {
+            create_dir(mojika_dir.as_path())?;
+        }
+        Ok(mojika_dir)
     }
 
     fn create_self_peer(server_port: u16) -> Peer {
