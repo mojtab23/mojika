@@ -1,10 +1,14 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::request::Request;
 use anyhow::Result;
+use bytes::{BufMut, BytesMut};
 use log::debug;
 use quinn::{ClientConfig, Connection, Endpoint};
+use rmp_serde::Serializer;
+use serde::Serialize;
+
+use crate::request::Request;
 
 #[derive(Debug)]
 pub struct Requester {
@@ -44,8 +48,10 @@ impl Requester {
     async fn open_bidirectional_stream(connection: Connection, request: Request) -> Result<()> {
         let (mut send, recv) = connection.open_bi().await?;
 
-        let data = ron::to_string(&request)?;
-        send.write_all(data.as_bytes()).await?;
+        let mut buf = BytesMut::with_capacity(1024).writer();
+        request.serialize(&mut Serializer::new(&mut buf))?;
+
+        send.write_all(buf.into_inner().as_ref()).await?;
 
         send.finish().await?;
 

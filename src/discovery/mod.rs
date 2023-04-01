@@ -3,7 +3,9 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
+use bytes::{BufMut, Bytes, BytesMut};
 use log::debug;
+use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tokio::net::UdpSocket;
@@ -14,16 +16,28 @@ const DEFAULT_PORT: u16 = 10020;
 
 pub struct Discovery {
     socket: Arc<UdpSocket>,
-    message: DiscoveryMessage,
+    message: Bytes,
 }
 
 impl Discovery {
     pub async fn new(peer: Peer) -> Result<Self> {
         let socket = Self::create_socket()?;
         let socket = Arc::new(socket);
-        let message = DiscoveryMessage::new(peer.id, peer.name, peer.address.port());
-        let discovery = Self { socket, message };
+
+        let message_bytes = Self::create_message(peer)?;
+        let discovery = Self {
+            socket,
+            message: message_bytes,
+        };
         Ok(discovery)
+    }
+
+    fn create_message(peer: Peer) -> Result<Bytes> {
+        let message = DiscoveryMessage::new(peer.id, peer.name, peer.address.port());
+        debug!("Discovery Message: {message:?}");
+        let mut message_bytes = BytesMut::with_capacity(1024).writer();
+        message.serialize(&mut Serializer::new(&mut message_bytes))?;
+        Ok(message_bytes.into_inner().freeze())
     }
 
     fn create_socket() -> Result<UdpSocket> {
@@ -46,8 +60,8 @@ impl Discovery {
         let result = socket.recv_from(&mut buf).await;
         match result {
             Ok((len, addr)) => {
-                let msg = String::from_utf8_lossy(&buf[..len]);
-                let discovery_msg = ron::from_str::<DiscoveryMessage>(&msg)?;
+                let mut deserializer = Deserializer::new(&buf[..len]);
+                let discovery_msg: DiscoveryMessage = Deserialize::deserialize(&mut deserializer)?;
 
                 debug!("message form address: {addr:?}");
                 Ok(DiscoveryResult::new(discovery_msg, addr))
@@ -60,11 +74,8 @@ impl Discovery {
 
     pub async fn send_signal(&self) -> Result<()> {
         let socket: Arc<UdpSocket> = self.socket.clone();
-        let message = ron::to_string(&self.message)?;
-        let msg = message.as_bytes();
-        debug!("{message:?}");
         let addr = SocketAddrV4::new(Ipv4Addr::new(224, 0, 1, 1), DEFAULT_PORT);
-        let len = socket.send_to(msg, &addr).await?;
+        let len = socket.send_to(&self.message, &addr).await?;
         debug!("Client Sent {len} bytes.");
         Ok(())
     }

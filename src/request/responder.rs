@@ -1,8 +1,11 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
+use bytes::{Buf, Bytes, BytesMut};
 use log::{debug, warn};
 use quinn::{Connection, Endpoint, ServerConfig};
+use rmp_serde::Deserializer;
+use serde::Deserialize;
 use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
@@ -59,14 +62,18 @@ async fn receive_bidirectional_stream(
 ) -> Result<()> {
     while let Ok((mut send, mut recv)) = connection.accept_bi().await {
         // Because it is a bidirectional stream, we can both send and receive.
-        let mut msg = String::new();
-        let _count = recv.read_to_string(&mut msg).await?;
-        debug!("request: {msg}");
-        let request = ron::from_str(&msg)?;
+        let mut buf = BytesMut::with_capacity(1024);
+        let _count = recv.read_buf(&mut buf).await?;
+        let request = deserialize(buf.into())?;
+        debug!("request: {request:?}");
         request_channel.send(request).await?;
         send.write_all(b"response").await?;
         send.finish().await?;
     }
-
     Ok(())
+}
+
+fn deserialize(buf: Bytes) -> Result<Request> {
+    let mut deserializer = Deserializer::new(buf.reader());
+    return Ok(Deserialize::deserialize(&mut deserializer)?);
 }
