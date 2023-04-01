@@ -18,9 +18,11 @@ use crate::app::peer::{Peer, Peers};
 use crate::app::shutdown::ShutdownWatcher;
 use crate::discovery::{Discovery, DiscoveryResult};
 use crate::gui;
-use crate::request::{Request, RequestBody};
-use crate::requester::Requester;
-use crate::responder::{server, server_addr};
+use crate::request::{
+    requester::Requester,
+    responder::{server, server_addr},
+    Request, RequestBody,
+};
 
 pub mod event;
 pub mod peer;

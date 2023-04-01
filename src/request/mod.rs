@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub mod requester;
+pub mod responder;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Request {
     pub peer_id: String,
