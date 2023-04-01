@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+pub mod file;
 pub mod requester;
 pub mod responder;
 
@@ -24,4 +25,5 @@ impl Request {
 pub enum RequestBody {
     Connect,
     Chat(String),
+    File(String),
 }

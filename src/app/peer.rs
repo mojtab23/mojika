@@ -50,9 +50,17 @@ impl Peers {
         match peer_op {
             None => {}
             Some(peer) => {
-                peer.chat.messages.push(Message::new(sender_id, chat));
+                peer.chat.messages.push(Message::new_text(sender_id, chat));
                 self.items_changed();
             }
+        }
+    }
+
+    pub fn add_file(&mut self, peer_id: &str, sender_id: &str, file: String) {
+        let peer_op = self.items.get_mut(peer_id);
+        if let Some(peer) = peer_op {
+            peer.chat.messages.push(Message::new_file(sender_id, file));
+            self.items_changed();
         }
     }
 

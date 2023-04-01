@@ -8,6 +8,7 @@ use tokio::sync::watch::Receiver;
 
 use crate::app::peer::Peer;
 use crate::app::App;
+use crate::chat::{Content, Message};
 
 pub fn new_gui(app: Arc<App>) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -81,19 +82,7 @@ impl AppUi {
                         debug!("SELECT {peer} clicked!");
                         self.selected_peer_id = Some(peer.id.clone());
                     }
-                    // if ui.button("SEND FILE").clicked() {
-                    //     debug!("open file picker");
-                    //     let file = rfd::FileDialog::new().pick_file();
-                    //
-                    //     if let Some(file) = file {
-                    //         if let Some(filename) = file.file_name() {
-                    //             let name = filename.to_str().unwrap_or_default();
-                    //             info!("file:{name}");
-                    //         }
-                    //     } else {
-                    //         debug!("No file selected.")
-                    //     }
-                    // }
+
                     // if ui.button("CONNECT").clicked() {
                     //     debug!("Connect to {peer:?} clicked.");
                     //     self.app.connect_to_peer(&peer.id);
@@ -146,12 +135,7 @@ impl AppUi {
                     ui.label("nothing to show!");
                 } else {
                     for message in p.chat.messages.iter() {
-                        let name = if message.sender == self.app.self_peer.id {
-                            "Me"
-                        } else {
-                            &p.name
-                        };
-                        ui.label(format!("{name}: {}", message.content));
+                        self.show_message(ui, &p, message);
                     }
                 }
             }
@@ -161,6 +145,20 @@ impl AppUi {
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 self.send_chat(peer_id);
             }
+            if ui.button("FILE(s)").clicked() {
+                debug!("open file picker");
+                let file = rfd::FileDialog::new().pick_file();
+
+                if let Some(file) = file {
+                    if let Some(filename) = file.file_name() {
+                        let filename = filename.to_str().unwrap_or_default();
+                        debug!("selected file:{filename}");
+                        self.send_file(filename, peer_id);
+                    }
+                } else {
+                    debug!("No file selected.")
+                }
+            }
             if ui.button("SEND").clicked() && !self.chat_text.is_empty() {
                 self.send_chat(peer_id);
             }
@@ -168,9 +166,32 @@ impl AppUi {
         });
     }
 
+    fn show_message(&mut self, ui: &mut Ui, p: &Peer, message: &Message) {
+        let name = if message.sender == self.app.self_peer.id {
+            "Me"
+        } else {
+            &p.name
+        };
+        let content = &message.content;
+        match content {
+            Content::Text { text } => {
+                ui.label(format!("{name}: {text}"));
+            }
+            Content::File { filename } => {
+                ui.label(format!("{name}: [FILE] {filename}"));
+            }
+        }
+    }
+
     fn send_chat(&mut self, peer_id: &str) {
         self.app
             .send_chat(peer_id, &self.app.self_peer.id, self.chat_text.clone());
+        self.chat_text.clear();
+    }
+
+    fn send_file(&mut self, filename: &str, peer_id: &str) {
+        self.app
+            .send_file(peer_id, &self.app.self_peer.id, filename.to_string());
         self.chat_text.clear();
     }
 }

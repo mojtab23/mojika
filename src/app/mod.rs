@@ -122,9 +122,15 @@ impl App {
         let peers = self.peers.clone();
         spawn(async move {
             while let Some(request) = request_channel_r.recv().await {
-                if let RequestBody::Chat(chat) = request.body {
-                    let mut write_peers = peers.write().await;
-                    write_peers.add_chat(&request.peer_id, &request.peer_id, chat);
+                let mut write_peers = peers.write().await;
+                match request.body {
+                    RequestBody::Chat(chat) => {
+                        write_peers.add_chat(&request.peer_id, &request.peer_id, chat);
+                    }
+                    RequestBody::File(file) => {
+                        write_peers.add_file(&request.peer_id, &request.peer_id, file);
+                    }
+                    _ => {}
                 }
             }
         });
@@ -239,6 +245,27 @@ impl App {
                 RequestBody::Chat(chat.to_owned()),
             );
             write_peers.add_chat(&peer_id, &sender_id, chat);
+            if let Some(peer) = write_peers.find_by_id(&peer_id).await {
+                let result = requester.request(peer.address, request).await;
+                debug!("send chat result:{result:?}");
+            }
+        });
+    }
+
+    pub fn send_file(&self, peer_id: &str, sender_id: &str, file: String) {
+        let peers = self.peers.clone();
+        let requester = self.requester.clone();
+        let peer_id = peer_id.to_string();
+        let self_peer = self.self_peer.clone();
+        let sender_id = sender_id.to_string();
+        self.runtime.spawn(async move {
+            let mut write_peers = peers.write().await;
+            let request = Request::new(
+                self_peer.id.to_owned(),
+                self_peer.secret.to_owned(),
+                RequestBody::File(file.to_owned()),
+            );
+            write_peers.add_file(&peer_id, &sender_id, file);
             if let Some(peer) = write_peers.find_by_id(&peer_id).await {
                 let result = requester.request(peer.address, request).await;
                 debug!("send chat result:{result:?}");

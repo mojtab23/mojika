@@ -14,18 +14,31 @@ impl Default for Chat {
         Self::new()
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct Message {
     /// peer_id
     pub sender: String,
-    pub content: String,
+    pub content: Content,
 }
 
 impl Message {
-    pub fn new(sender: &str, content: String) -> Self {
+    pub fn new_text(sender: &str, text: String) -> Self {
         Self {
             sender: sender.to_string(),
-            content,
+            content: Content::Text { text },
         }
     }
+    pub fn new_file(sender: &str, filename: String) -> Self {
+        Self {
+            sender: sender.to_string(),
+            content: Content::File { filename },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Content {
+    Text { text: String },
+    File { filename: String },
 }

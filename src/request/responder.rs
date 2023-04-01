@@ -37,7 +37,7 @@ pub async fn server(
                 let client_addr = connection.remote_address();
                 debug!("Got new QUIC connection {client_addr:?}");
                 // Save connection somewhere, start transferring, receiving data, see DataTransfer tutorial.
-                receive_bidirectional_stream(connection,&request_channel).await?;
+                receive_bidirectional_stream(connection, &request_channel).await?;
             }
             res = shutdown.recv() => {
                 debug!("Got {res:?} for shutdown the server");
