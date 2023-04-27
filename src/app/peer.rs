@@ -1,13 +1,21 @@
-use std::collections::hash_map::Entry::Vacant;
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
-use std::net::SocketAddr;
+use std::{
+    collections::hash_map::Entry::Vacant,
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    net::SocketAddr,
+};
 
 use log::warn;
-use tokio::sync::watch;
-use tokio::sync::watch::{Receiver, Sender};
+use tokio::{
+    sync::watch,
+    sync::watch::{Receiver, Sender}
+};
+use uuid::Uuid;
 
-use crate::chat::{Chat, Message};
+use crate::{
+    chat::{Chat, Message},
+    request::file::CreateFile,
+};
 
 #[derive(Debug)]
 pub struct Peers {
@@ -45,6 +53,10 @@ impl Peers {
         option.cloned()
     }
 
+    pub async fn find_peer_address(&self, peer_id: &str) -> Option<SocketAddr> {
+        self.find_by_id(peer_id).await.map(|p| p.address)
+    }
+
     pub fn add_chat(&mut self, peer_id: &str, sender_id: &str, chat: String) {
         let peer_op = self.items.get_mut(peer_id);
         match peer_op {
@@ -56,13 +68,29 @@ impl Peers {
         }
     }
 
-    pub fn add_file(&mut self, peer_id: &str, sender_id: &str, file: String) {
+    pub fn add_file(&mut self, peer_id: &str, sender_id: &str, file: CreateFile) {
         let peer_op = self.items.get_mut(peer_id);
+
         if let Some(peer) = peer_op {
-            peer.chat.messages.push(Message::new_file(sender_id, file));
+            peer.chat.messages.push(Message::new_file(
+                sender_id,
+                Uuid::new_v4().to_string(),
+                file.filename,
+                "Just created.".to_string(),
+            ));
             self.items_changed();
         }
     }
+    // pub fn update_file_status(&mut self, peer_id: &str, sender_id: &str, file_chunk: FileChunk) {
+    //     let peer_op = self.items.get_mut(peer_id);
+    //     if let Some(peer) = peer_op {
+    //         let iter = peer.chat.messages.iter();
+    //         let option = iter.find(|&a| a.id == file_chunk.file_id);
+    //
+    //         peer.chat.messages.push(Message::new_file(sender_id, file));
+    //         self.items_changed();
+    //     }
+    // }
 
     fn items_changed(&self) {
         let _ = self.peers_watch_s.send(self.items.clone()).map_err(|e| {

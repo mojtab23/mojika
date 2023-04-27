@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use eframe::egui;
@@ -149,12 +150,9 @@ impl AppUi {
                 debug!("open file picker");
                 let file = rfd::FileDialog::new().pick_file();
 
-                if let Some(file) = file {
-                    if let Some(filename) = file.file_name() {
-                        let filename = filename.to_str().unwrap_or_default();
-                        debug!("selected file:{filename}");
-                        self.send_file(filename, peer_id);
-                    }
+                if let Some(file_path) = file {
+                    debug!("selected file:{file_path:?}");
+                    self.send_file(file_path, peer_id);
                 } else {
                     debug!("No file selected.")
                 }
@@ -177,7 +175,7 @@ impl AppUi {
             Content::Text { text } => {
                 ui.label(format!("{name}: {text}"));
             }
-            Content::File { filename } => {
+            Content::File { filename, .. } => {
                 ui.label(format!("{name}: [FILE] {filename}"));
             }
         }
@@ -189,9 +187,9 @@ impl AppUi {
         self.chat_text.clear();
     }
 
-    fn send_file(&mut self, filename: &str, peer_id: &str) {
+    fn send_file(&mut self, file_path: PathBuf, peer_id: &str) {
         self.app
-            .send_file(peer_id, &self.app.self_peer.id, filename.to_string());
+            .send_file(peer_id, &self.app.self_peer.id, file_path);
         self.chat_text.clear();
     }
 }

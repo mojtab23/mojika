@@ -1,5 +1,4 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
@@ -7,8 +6,9 @@ use log::debug;
 use quinn::{ClientConfig, Connection, Endpoint};
 use rmp_serde::Serializer;
 use serde::Serialize;
+use tokio::io::AsyncReadExt;
 
-use crate::request::Request;
+use crate::request::{deserialize, Request};
 
 #[derive(Debug)]
 pub struct Requester {
@@ -35,18 +35,21 @@ impl Requester {
         ClientConfig::new(Arc::new(crypto))
     }
 
-    pub async fn request(&self, remote_addr: SocketAddr, request: Request) -> Result<()> {
+    pub async fn request(&self, remote_addr: SocketAddr, request: Request) -> Result<Request> {
         debug!("Connecting server:{remote_addr:?}");
         // Connect to the server passing in the server name which is supposed to be in the server certificate.
         let connecting = self.endpoint.connect(remote_addr, "localhost")?;
         let connection = connecting.await?;
         // Start transferring, receiving data, see data transfer page.
-        Self::open_bidirectional_stream(connection, request).await?;
-        Ok(())
+        let response = Self::open_bidirectional_stream(connection, request).await?;
+        Ok(response)
     }
 
-    async fn open_bidirectional_stream(connection: Connection, request: Request) -> Result<()> {
-        let (mut send, recv) = connection.open_bi().await?;
+    async fn open_bidirectional_stream(
+        connection: Connection,
+        request: Request,
+    ) -> Result<Request> {
+        let (mut send, mut recv) = connection.open_bi().await?;
 
         let mut buf = BytesMut::with_capacity(1024).writer();
         request.serialize(&mut Serializer::new(&mut buf))?;
@@ -55,11 +58,11 @@ impl Requester {
 
         send.finish().await?;
 
-        let received = recv.read_to_end(1024).await?;
-
-        let receive = String::from_utf8_lossy(&received);
-        debug!("Client got: {receive}");
-        Ok(())
+        let mut buf = BytesMut::with_capacity(1024);
+        let _count = recv.read_buf(&mut buf).await?;
+        let response = deserialize(buf.into())?;
+        debug!("Client got response: {response:?}");
+        Ok(response)
     }
 }
 

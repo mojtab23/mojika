@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 #[derive(Debug, Clone)]
 pub struct Chat {
     pub messages: Vec<Message>,
@@ -17,6 +19,7 @@ impl Default for Chat {
 
 #[derive(Debug, Clone)]
 pub struct Message {
+    pub id: String,
     /// peer_id
     pub sender: String,
     pub content: Content,
@@ -25,20 +28,32 @@ pub struct Message {
 impl Message {
     pub fn new_text(sender: &str, text: String) -> Self {
         Self {
+            id: Uuid::new_v4().to_string(),
             sender: sender.to_string(),
             content: Content::Text { text },
         }
     }
-    pub fn new_file(sender: &str, filename: String) -> Self {
+    pub fn new_file(sender: &str, file_id: String, filename: String, progress: String) -> Self {
         Self {
+            id: Uuid::new_v4().to_string(),
             sender: sender.to_string(),
-            content: Content::File { filename },
+            content: Content::File {
+                file_id,
+                filename,
+                progress,
+            },
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Content {
-    Text { text: String },
-    File { filename: String },
+    Text {
+        text: String,
+    },
+    File {
+        file_id: String,
+        filename: String,
+        progress: String,
+    },
 }
