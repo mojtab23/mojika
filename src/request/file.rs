@@ -18,9 +18,9 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::request::{FileRequest, RequestBody};
 use crate::{
-    app::new_id, app::peer::Peer, app::peer::Peers, request::requester::Requester, request::Request,
+    app::{new_id, peer::Peer, peer::Peers},
+    request::{requester::Requester, response::ResponseBody, FileRequest, Request, RequestBody},
 };
 
 const BUFFER_LEN: usize = 8000;
@@ -257,7 +257,7 @@ impl FileTransfer {
                 RequestBody::File(FileRequest::FileChunk(file_chunk)),
             );
             let response = self.requester.request(address, request).await?;
-            if let RequestBody::Err(e) = response.body {
+            if let ResponseBody::Err(e) = response.body {
                 warn!("Got error in response of file chunk: {}", e);
                 break;
             }

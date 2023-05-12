@@ -8,7 +8,7 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 use tokio::io::AsyncReadExt;
 
-use crate::request::{deserialize, Request};
+use crate::{request::response::Response, request::Request};
 
 #[derive(Debug)]
 pub struct Requester {
@@ -35,7 +35,7 @@ impl Requester {
         ClientConfig::new(Arc::new(crypto))
     }
 
-    pub async fn request(&self, remote_addr: SocketAddr, request: Request) -> Result<Request> {
+    pub async fn request(&self, remote_addr: SocketAddr, request: Request) -> Result<Response> {
         debug!("Connecting server:{remote_addr:?}");
         // Connect to the server passing in the server name which is supposed to be in the server certificate.
         let connecting = self.endpoint.connect(remote_addr, "localhost")?;
@@ -48,7 +48,7 @@ impl Requester {
     async fn open_bidirectional_stream(
         connection: Connection,
         request: Request,
-    ) -> Result<Request> {
+    ) -> Result<Response> {
         let (mut send, mut recv) = connection.open_bi().await?;
 
         let mut buf = BytesMut::with_capacity(1024).writer();
@@ -60,7 +60,7 @@ impl Requester {
 
         let mut buf = BytesMut::with_capacity(1024);
         let _count = recv.read_buf(&mut buf).await?;
-        let response = deserialize(buf.into())?;
+        let response = buf.freeze().try_into()?;
         debug!("Client got response: {response:?}");
         Ok(response)
     }

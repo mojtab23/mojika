@@ -32,6 +32,7 @@ use crate::{
         file::FileTransfer,
         requester::Requester,
         responder::{server, server_addr},
+        response::{FileResponse, Response, ResponseBody},
         FileRequest, Request, RequestBody,
     },
 };
@@ -316,7 +317,7 @@ impl App {
                 let result = requester.request(peer.address, create_file_request).await;
                 debug!("send chat result:{result:?}");
                 if let Ok(r) = result {
-                    if let RequestBody::File(FileRequest::FileCreated(file_id)) = r.body {
+                    if let ResponseBody::File(FileResponse::FileCreated(file_id)) = r.body {
                         debug!("Got FileCreated response!");
                         file_transfer
                             .send_created_file(file_id, file_path, peer_id.clone())
@@ -355,7 +356,7 @@ impl App {
         // let server1 = server(shutdown).await;
     }
 
-    pub async fn dispatch_request(self: Arc<Self>, request: Request) -> Request {
+    pub async fn dispatch_request(self: Arc<Self>, request: Request) -> Response {
         let peers = self.peers.clone();
         let mut write_peers = peers.write().await;
         match request.body {
@@ -367,17 +368,17 @@ impl App {
                     FileRequest::CreateFile(f) => {
                         let f1 = f.to_owned();
                         let Ok(file_id) = self.file_transfer.create_file(f.filename, f.file_length).await else {
-                            return Request::new(
+                            return Response::new(
                                 self.self_peer.id.clone(),
                                 self.self_peer.secret.clone(),
-                                RequestBody::Err("Unhandled request body!".to_string()),
+                                ResponseBody::Err("Unhandled request body!".to_string()),
                             );
                         };
                         write_peers.add_file(&request.peer_id, &request.peer_id, f1);
-                        return Request::new(
+                        return Response::new(
                             self.self_peer.id.to_owned(),
                             self.self_peer.secret.to_owned(),
-                            RequestBody::File(FileRequest::FileCreated(file_id)),
+                            ResponseBody::File(FileResponse::FileCreated(file_id)),
                         );
                     }
                     FileRequest::FileChunk(r) => {
@@ -385,17 +386,17 @@ impl App {
                         let result = self.file_transfer.write_file_chunk(r).await;
                         // write_peers.update_file_status(&request.peer_id, &request.peer_id, f)
                         return match result {
-                            Ok(_) => Request::new(
+                            Ok(_) => Response::new(
                                 self.self_peer.id.to_owned(),
                                 self.self_peer.secret.to_owned(),
-                                RequestBody::Ok,
+                                ResponseBody::Ok,
                             ),
                             Err(e) => {
                                 warn!("error saving the file chunk:{:?}", e);
-                                Request::new(
+                                Response::new(
                                     self.self_peer.id.to_owned(),
                                     self.self_peer.secret.to_owned(),
-                                    RequestBody::Err(e.to_string()),
+                                    ResponseBody::Err(e.to_string()),
                                 )
                             }
                         };
@@ -404,17 +405,17 @@ impl App {
                 }
             }
             _ => {
-                return Request::new(
+                return Response::new(
                     self.self_peer.id.clone(),
                     self.self_peer.secret.clone(),
-                    RequestBody::Err("Unhandled request body!".to_string()),
+                    ResponseBody::Err("Unhandled request body!".to_string()),
                 );
             }
         }
-        Request::new(
+        Response::new(
             self.self_peer.id.clone(),
             self.self_peer.secret.clone(),
-            RequestBody::Err("Don't know how to handle your request!?".to_string()),
+            ResponseBody::Err("Don't know how to handle your request!?".to_string()),
         )
     }
 }

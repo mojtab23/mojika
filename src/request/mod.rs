@@ -1,4 +1,3 @@
-use anyhow::Result;
 use bytes::{Buf, Bytes};
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +6,7 @@ use crate::request::file::{CreateFile, FileChunk};
 pub mod file;
 pub mod requester;
 pub mod responder;
+pub mod response;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Request {
@@ -22,6 +22,15 @@ impl Request {
             secret,
             body,
         }
+    }
+}
+
+impl TryFrom<Bytes> for Request {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Bytes) -> std::result::Result<Self, Self::Error> {
+        let mut deserializer = rmp_serde::Deserializer::new(value.reader());
+        Ok(Deserialize::deserialize(&mut deserializer)?)
     }
 }
 
@@ -41,7 +50,11 @@ pub enum FileRequest {
     FileChunk(FileChunk),
 }
 
-pub fn deserialize(buf: Bytes) -> Result<Request> {
-    let mut deserializer = rmp_serde::Deserializer::new(buf.reader());
-    Ok(Deserialize::deserialize(&mut deserializer)?)
-}
+// pub fn deserialize(buf: Bytes) -> Result<Request> {
+//     let mut deserializer = rmp_serde::Deserializer::new(buf.reader());
+//     Ok(Deserialize::deserialize(&mut deserializer)?)
+// }
+// pub fn deserialize_response(buf: Bytes) -> Result<Response> {
+//     let mut deserializer = rmp_serde::Deserializer::new(buf.reader());
+//     Ok(Deserialize::deserialize(&mut deserializer)?)
+// }

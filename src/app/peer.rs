@@ -6,9 +6,9 @@ use std::{
 };
 
 use log::warn;
-use tokio::{
-    sync::watch,
-    sync::watch::{Receiver, Sender}
+use tokio::sync::{
+    watch,
+    watch::{Receiver, Sender},
 };
 use uuid::Uuid;
 

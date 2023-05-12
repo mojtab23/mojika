@@ -9,7 +9,7 @@ use serde::Serialize;
 use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast::Receiver;
 
-use crate::{app::App, request::deserialize};
+use crate::app::App;
 
 fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKey)> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])?;
@@ -65,7 +65,7 @@ async fn receive_bidirectional_stream(
         // Because it is a bidirectional stream, we can both send and receive.
         let mut buf = BytesMut::with_capacity(10_000);
         let _count = recv.read_buf(&mut buf).await?;
-        let request = deserialize(buf.into())?;
+        let request = buf.freeze().try_into()?;
         debug!("request: {request:?}");
         let response = app.dispatch_request(request).await;
         // request_channel.send(request).await?;
@@ -78,8 +78,3 @@ async fn receive_bidirectional_stream(
     }
     Ok(())
 }
-
-// fn deserialize(buf: Bytes) -> Result<Request> {
-//     let mut deserializer = Deserializer::new(buf.reader());
-//     return Ok(Deserialize::deserialize(&mut deserializer)?);
-// }
