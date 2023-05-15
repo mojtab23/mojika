@@ -8,7 +8,10 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 use tokio::io::AsyncReadExt;
 
-use crate::{request::response::Response, request::Request};
+use crate::{
+    request::certificate_verifier::SkipServerVerification, request::response::Response,
+    request::Request,
+};
 
 #[derive(Debug)]
 pub struct Requester {
@@ -63,28 +66,5 @@ impl Requester {
         let response = buf.freeze().try_into()?;
         debug!("Client got response: {response:?}");
         Ok(response)
-    }
-}
-
-// Implementation of `ServerCertVerifier` that verifies everything as trustworthy.
-struct SkipServerVerification;
-
-impl SkipServerVerification {
-    fn new() -> Arc<Self> {
-        Arc::new(Self)
-    }
-}
-
-impl rustls::client::ServerCertVerifier for SkipServerVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::Certificate,
-        _intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
     }
 }

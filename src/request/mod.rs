@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::request::file::{CreateFile, FileChunk};
 
+mod certificate_verifier;
 pub mod file;
 pub mod requester;
 pub mod responder;
@@ -28,7 +29,7 @@ impl Request {
 impl TryFrom<Bytes> for Request {
     type Error = anyhow::Error;
 
-    fn try_from(value: Bytes) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
         let mut deserializer = rmp_serde::Deserializer::new(value.reader());
         Ok(Deserialize::deserialize(&mut deserializer)?)
     }
@@ -49,12 +50,3 @@ pub enum FileRequest {
     FileCreated(String),
     FileChunk(FileChunk),
 }
-
-// pub fn deserialize(buf: Bytes) -> Result<Request> {
-//     let mut deserializer = rmp_serde::Deserializer::new(buf.reader());
-//     Ok(Deserialize::deserialize(&mut deserializer)?)
-// }
-// pub fn deserialize_response(buf: Bytes) -> Result<Response> {
-//     let mut deserializer = rmp_serde::Deserializer::new(buf.reader());
-//     Ok(Deserialize::deserialize(&mut deserializer)?)
-// }

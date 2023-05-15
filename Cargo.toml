@@ -15,6 +15,9 @@ socket2 = "0.5"
 # QUIC
 quinn = "0.9"
 rustls = { version = "0.20", features = ["dangerous_configuration", "quic"] }
+# TODO update this
+#quinn = "0.10"
+#rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 rcgen = "0.10"
 
 # SerDe
