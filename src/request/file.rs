@@ -23,7 +23,7 @@ use crate::{
     request::{requester::Requester, response::ResponseBody, FileRequest, Request, RequestBody},
 };
 
-const BUFFER_LEN: usize = 8000;
+const BUFFER_LEN: usize = 200_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CreateFile {

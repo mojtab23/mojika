@@ -12,14 +12,14 @@ use std::{
 use anyhow::{bail, Error, Result};
 use directories::UserDirs;
 use log::{debug, error, info, warn};
-use tokio::sync::OnceCell;
 use tokio::{
     runtime::Runtime,
     spawn,
+    sync::{RwLock, watch},
     sync::broadcast::Receiver,
-    sync::{watch, RwLock},
     time::sleep,
 };
+use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 use crate::{
@@ -30,10 +30,10 @@ use crate::{
     request::{
         file::CreateFile,
         file::FileTransfer,
-        requester::Requester,
-        responder::{server, server_addr},
-        response::{FileResponse, Response, ResponseBody},
-        FileRequest, Request, RequestBody,
+        FileRequest,
+        Request,
+        RequestBody,
+        requester::Requester, responder::{server, server_addr}, response::{FileResponse, Response, ResponseBody},
     },
 };
 
@@ -362,12 +362,20 @@ impl App {
         match request.body {
             RequestBody::Chat(chat) => {
                 write_peers.add_chat(&request.peer_id, &request.peer_id, chat);
+                return Response::create_ok_response(
+                    self.self_peer.id.to_owned(),
+                    self.self_peer.secret.to_owned(),
+                );
             }
             RequestBody::File(file) => {
                 match file {
                     FileRequest::CreateFile(f) => {
                         let f1 = f.to_owned();
-                        let Ok(file_id) = self.file_transfer.create_file(f.filename, f.file_length).await else {
+                        let Ok(file_id) = self
+                            .file_transfer
+                            .create_file(f.filename, f.file_length)
+                            .await
+                        else {
                             return Response::new(
                                 self.self_peer.id.clone(),
                                 self.self_peer.secret.clone(),
@@ -386,10 +394,9 @@ impl App {
                         let result = self.file_transfer.write_file_chunk(r).await;
                         // write_peers.update_file_status(&request.peer_id, &request.peer_id, f)
                         return match result {
-                            Ok(_) => Response::new(
+                            Ok(_) => Response::create_ok_response(
                                 self.self_peer.id.to_owned(),
                                 self.self_peer.secret.to_owned(),
-                                ResponseBody::Ok,
                             ),
                             Err(e) => {
                                 warn!("error saving the file chunk:{:?}", e);
@@ -403,6 +410,12 @@ impl App {
                     }
                     _ => {}
                 }
+            }
+            RequestBody::Connect => {
+                return Response::create_ok_response(
+                    self.self_peer.id.clone(),
+                    self.self_peer.secret.clone(),
+                );
             }
             _ => {
                 return Response::new(

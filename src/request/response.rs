@@ -16,6 +16,10 @@ impl Response {
             body,
         }
     }
+
+    pub fn create_ok_response(peer_id: String, secret: String) -> Self {
+        Self::new(peer_id, secret, ResponseBody::Ok)
+    }
 }
 
 impl TryFrom<Bytes> for Response {

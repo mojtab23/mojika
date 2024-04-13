@@ -2,15 +2,16 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
-use log::debug;
-use quinn::{ClientConfig, Connection, Endpoint};
+use log::{debug, error};
+use quinn::{ClientConfig, Connection, Endpoint, RecvStream, SendStream};
 use rmp_serde::Serializer;
 use serde::Serialize;
-use tokio::io::AsyncReadExt;
 
 use crate::{
-    request::certificate_verifier::SkipServerVerification, request::response::Response,
+    request::certificate_verifier::SkipServerVerification,
+    request::protocol::{MojikaProtocol, MojikaProtocolHeader},
     request::Request,
+    request::response::Response
 };
 
 #[derive(Debug)]
@@ -53,18 +54,34 @@ impl Requester {
         request: Request,
     ) -> Result<Response> {
         let (mut send, mut recv) = connection.open_bi().await?;
-
-        let mut buf = BytesMut::with_capacity(1024).writer();
-        request.serialize(&mut Serializer::new(&mut buf))?;
-
-        send.write_all(buf.into_inner().as_ref()).await?;
-
-        send.finish().await?;
-
-        let mut buf = BytesMut::with_capacity(1024);
-        let _count = recv.read_buf(&mut buf).await?;
-        let response = buf.freeze().try_into()?;
+        send_request(&mut send, &request).await?;
+        let response = receive_response(&mut recv).await?;
         debug!("Client got response: {response:?}");
         Ok(response)
     }
+}
+
+async fn send_request(send: &mut SendStream, request: &Request) -> Result<()> {
+    let mut bytes = BytesMut::with_capacity(1024).writer();
+    request.serialize(&mut Serializer::new(&mut bytes))?;
+    let bytes = bytes.into_inner();
+
+    let header = MojikaProtocolHeader {
+        type_name: "Request".to_string(),
+        len: bytes.len(),
+    };
+    let mut all = BytesMut::from(header.serialize().as_bytes());
+    all.put(bytes);
+    send.write_all(all.as_ref()).await?;
+    send.finish().await?;
+    Ok(())
+}
+
+async fn receive_response(recv: &mut RecvStream) -> Result<Response> {
+    let protocol = MojikaProtocol::from_read(recv).await?;
+    if protocol.header.type_name != "Response" {
+        error!("Invalid type_name expect 'Response'");
+    };
+    let response = protocol.content.try_into()?;
+    Ok(response)
 }

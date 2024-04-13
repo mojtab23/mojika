@@ -3,13 +3,15 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
 use log::{debug, warn};
-use quinn::{Connection, Endpoint, ServerConfig};
+use quinn::{Connection, Endpoint, RecvStream, SendStream, ServerConfig};
 use rmp_serde::Serializer;
 use serde::Serialize;
-use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast::Receiver;
 
 use crate::app::App;
+use crate::request::protocol::{MojikaProtocol, MojikaProtocolHeader};
+use crate::request::response::Response;
+use crate::request::Request;
 
 fn generate_self_signed_cert() -> Result<(rustls::Certificate, rustls::PrivateKey)> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])?;
@@ -62,19 +64,30 @@ async fn receive_bidirectional_stream(
 ) -> Result<()> {
     while let Ok((mut send, mut recv)) = connection.accept_bi().await {
         let app = app.clone();
-        // Because it is a bidirectional stream, we can both send and receive.
-        let mut buf = BytesMut::with_capacity(10_000);
-        let _count = recv.read_buf(&mut buf).await?;
-        let request = buf.freeze().try_into()?;
-        debug!("request: {request:?}");
+        let request = receive_request(&mut recv).await?;
         let response = app.dispatch_request(request).await;
-        // request_channel.send(request).await?;
-        let mut message_bytes = BytesMut::with_capacity(1024).writer();
-        response.serialize(&mut Serializer::new(&mut message_bytes))?;
-        send.write_all(&message_bytes.into_inner().freeze()).await?;
-        // send.write_chunk(message_bytes.into_inner().freeze());
-        // send.write_all(b"response").await?;
-        send.finish().await?;
+        send_response(&mut send, &response).await?;
     }
+    Ok(())
+}
+
+async fn receive_request(recv: &mut RecvStream) -> Result<Request> {
+    let protocol = MojikaProtocol::from_read(recv).await?;
+    let request = protocol.content.try_into()?;
+    Ok(request)
+}
+
+async fn send_response(send: &mut SendStream, response: &Response) -> Result<()> {
+    let mut bytes = BytesMut::with_capacity(1024).writer();
+    response.serialize(&mut Serializer::new(&mut bytes))?;
+    let bytes = bytes.into_inner();
+    let len = bytes.len();
+    let header = MojikaProtocolHeader {
+        type_name: "Response".to_string(),
+        len,
+    };
+    send.write_all(header.serialize().as_bytes()).await?;
+    send.write_all(&bytes).await?;
+    send.finish().await?;
     Ok(())
 }

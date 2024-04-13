@@ -5,6 +5,7 @@ use crate::request::file::{CreateFile, FileChunk};
 
 mod certificate_verifier;
 pub mod file;
+pub mod protocol;
 pub mod requester;
 pub mod responder;
 pub mod response;
